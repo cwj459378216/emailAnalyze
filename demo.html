@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            font-size: 13px;
+        }
+
+        #main {
+            width: 900px;
+            margin: 20px auto;
+        }
+
+        #mimeform {
+            padding: 20px 0;
+        }
+
+        #html-content iframe {
+            width: 1px;
+            min-width: 100%;
+            padding: 0;
+            margin: 0;
+            border: 0;
+        }
+
+        #text-content {
+            font-family: Sans-serif;
+            white-space: pre-wrap;
+            border: none;
+            font-family: Sans-serif;
+            font-size: 13px;
+        }
+
+        .email-info-row {
+            display: flex;
+        }
+
+        .email-info-label {
+            margin-right: 5px;
+        }
+
+        #attachments-container .content {
+            display: flex;
+        }
+
+        #html-container, #text-container, #attachments-container {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #aaa;
+        }
+
+        .container-label {
+            font-weight: 900;
+            padding-bottom: 5px;
+        }
+
+        .attachment-link {
+            display: block;
+            margin-right: 5px;
+            padding: 5px;
+            border: 1px solid #aaa;
+            border-radius: 2px;
+        }
+
+        a {
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        #subject-content{
+            font-weight: 900;
+            font-size: 1.2rem;
+        }
+
+        .email-info-row {
+            padding-top: 5px;
+        }
+
+
+    </style>
+</head>
+<body>
+    <form id="mimeform">
+        <input type="file" id="mime">
+        <button type="submit">Display</button>
+    </form>
+    <div id="email-container" style="display: none;">
+
+        <div id="info-container">
+            <div id="subject-content"></div>
+            <div id="from-container" class="email-info-row"><div class="email-info-label">From</div><div class="content"></div></div>
+            <div id="to-container" class="email-info-row"><div class="email-info-label">To</div><div class="content"></div></div>
+            <div id="cc-container" class="email-info-row"><div class="email-info-label">Cc</div><div class="content"></div></div>
+            <div id="bcc-container" class="email-info-row"><div class="email-info-label">Bcc</div><div class="content"></div></div>
+            <div id="date-container" class="email-info-row"><div class="content"></div></div>
+        </div>
+
+        <div id="html-container">
+            <div class="container-label">HTML</div>
+            <div id="html-content"></div>
+            <div><small><em>Images not shown? Mixed content is not allowed, so check that image links are not HTTP if this page is HTTPS.</em></small></div>
+        </div>
+
+        <div id="text-container">
+            <div class="container-label">Text</div>
+            <div id="text-content"></div>
+        </div>
+
+        <div id="attachments-container">
+            <div class="container-label">Attachments</div>
+            <div class="content"></div>
+        </div>
+
+    </div>
+</body>
+<script src="./node_modules/_iframe-resizer@4.3.2@iframe-resizer/js/iframeResizer.min.js"></script>
+<script src="./node_modules/_postal-mime@1.0.12@postal-mime/dist/postal-mime.js"></script>
+<script>
+    
+document.addEventListener('DOMContentLoaded', ()=>{
+
+let iframeResizer;
+
+function formatAddress(address){
+    const a = document.createElement('a');
+    a.classList.add('email-address');
+    a.textContent = address.name || `<${address.address}>`;
+    a.href = `mailto:${address.address}`
+    return a;
+}
+
+function formatAddresses(addresses){
+    let parts = [];
+
+    let processAddress = (address, partCounter) => {
+        if(partCounter){
+            let sep = document.createElement('span');
+            sep.classList.add('email-address-separator');
+            sep.textContent = ', ';
+            parts.push(sep);
+        }
+
+        if(address.group){
+            let groupStart = document.createElement('span');
+            groupStart.classList.add('email-address-group');
+            let groupEnd = document.createElement('span');
+            groupEnd.classList.add('email-address-group');
+
+            groupStart.textContent = `${address.name}:`;
+            groupEnd.textContent = `;`;
+
+            parts.push(groupStart);
+            address.group.forEach(processAddress);
+            parts.push(groupEnd);
+        }else{
+            parts.push(formatAddress(address));
+        }
+    }
+
+    addresses.forEach(processAddress);
+
+    const result = document.createDocumentFragment();
+    parts.forEach(part=>{
+        result.appendChild(part);
+    });
+    return result;
+}
+
+function renderEmail(email){
+
+    document.getElementById("email-container").style.display = 'block';
+
+    if(email.subject){
+        document.getElementById("subject-content").style.display = 'block';
+        document.getElementById("subject-content").textContent = email.subject
+    }else{
+        document.getElementById("subject-content").style.display = 'none';
+    }
+
+    if(email.from){
+        document.getElementById("from-container").style.display = 'flex';
+        document.querySelector("#from-container .content").innerHTML = '';
+        document.querySelector("#from-container .content").appendChild(formatAddress(email.from))
+    }else{
+        document.getElementById("from-container").style.display = 'none';
+    }
+
+    for(let type of ['to', 'cc', 'bcc']){
+        if(email[type] && email[type].length){
+            document.getElementById(`${type}-container`).style.display = 'flex';
+            document.querySelector(`#${type}-container .content`).innerHTML = '';
+            document.querySelector(`#${type}-container .content`).appendChild(formatAddresses(email[type]))
+        }else{
+            document.getElementById(`${type}-container`).style.display = 'none';
+        }
+    }
+
+    if(email.date){
+        document.getElementById("date-container").style.display = 'flex';
+        document.querySelector("#date-container .content").innerHTML = '';
+
+        let dateOptions = {
+            year: 'numeric', month: 'numeric', day: 'numeric',
+            hour: 'numeric', minute: 'numeric', second: 'numeric',
+            hour12: false
+        };
+
+        document.querySelector("#date-container .content").textContent= new Intl.DateTimeFormat('default', dateOptions).format(new Date(email.date));
+    }else{
+        document.getElementById("date-container").style.display = 'none';
+    }
+
+    const htmlContainerElm = document.getElementById("html-container");
+    const htmlContentElm = document.getElementById("html-content");
+
+    if(iframeResizer){
+        iframeResizer[0].iFrameResizer.close()
+        iframeResizer = false;
+    }
+
+    htmlContentElm.innerHTML = '';
+    if(email.html){
+        const htmlIframe = document.createElement('iframe');
+        htmlIframe.setAttribute('id', 'myIframe');
+
+        // div tag in which iframe will be added should have id attribute with value myDIV
+        htmlContentElm.appendChild(htmlIframe);
+        htmlContainerElm.style.display = 'block';
+
+        htmlIframe.contentWindow.document.open();
+        htmlIframe.contentWindow.document.write(email.html);
+        htmlIframe.contentWindow.document.close();
+
+        const cssLink = document.createElement("link");
+        cssLink.href = "./email.css";
+        cssLink.type = "text/css";
+        cssLink.rel = "stylesheet";
+        htmlIframe.contentWindow.document.getElementsByTagName("head")[0].appendChild(cssLink);
+
+        const iframeScript = document.createElement("script");
+        iframeScript.setAttribute('src', './node_modules/_iframe-resizer@4.3.2@iframe-resizer/js/iframeResizer.contentWindow.min.js');
+        htmlIframe.contentWindow.document.getElementsByTagName("head")[0].appendChild(iframeScript);
+
+        htmlIframe.contentWindow.document.querySelectorAll('img').forEach(img=>{
+            if(/^cid:/.test(img.src)){
+                // replace with inline attachment
+                const cid = img.src.substr(4).trim();
+                const attachment = email.attachments.find(attachment=>attachment.contentId && attachment.contentId === `<${cid}>`);
+                if(attachment){
+                    img.src = URL.createObjectURL(new Blob([attachment.content], {type: attachment.mimeType}))
+                }
+            }
+        });
+
+        htmlIframe.contentWindow.document.querySelectorAll('a').forEach(a=>{
+            a.setAttribute('target', '_blank');
+        });
+
+        iframeResizer = iFrameResize({ checkOrigin: false }, '#myIframe');
+    }else{
+        htmlContainerElm.style.display = 'none';
+    }
+
+    const textContainerElm = document.getElementById("text-container");
+    const textContentElm = document.getElementById("text-content");
+    textContentElm.innerHTML = '';
+    if(email.text){
+        textContentElm.textContent = email.text;
+        textContainerElm.style.display = 'block';
+    }else{
+        textContainerElm.style.display = 'none';
+    }
+
+
+    if(email.attachments && email.attachments.length){
+        document.getElementById("attachments-container").style.display = 'block';
+        document.querySelector("#attachments-container .content").innerHTML = ''
+
+        email.attachments.forEach(attachment=>{
+            const attachmentLink = document.createElement('a');
+            attachmentLink.href = URL.createObjectURL(new Blob([attachment.content], {type: attachment.mimeType}));
+            attachmentLink.download = attachment.filename || 'attachment';
+            attachmentLink.textContent = attachment.filename || `attachment (${attachment.mimeType})`
+            attachmentLink.classList.add('attachment-link');
+
+            document.querySelector("#attachments-container .content").appendChild(attachmentLink);
+        });
+
+    }else{
+        document.getElementById("attachments-container").style.display = 'none';
+    }
+}
+
+
+const PostalMime = postalMime.default;
+
+document.getElementById('mimeform').addEventListener('submit', e=>{
+    e.preventDefault();
+    
+    const parser = new PostalMime();
+    
+    parser.parse(document.getElementById('mime').files[0])
+    .then(email=>{
+        console.log(JSON.stringify(email, false, 2));
+        renderEmail(email)
+    }).catch(err=>console.error(err))
+});
+});
+
+</script>
+</html>
